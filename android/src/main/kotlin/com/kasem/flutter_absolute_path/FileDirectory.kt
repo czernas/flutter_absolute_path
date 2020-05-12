@@ -6,9 +6,13 @@ import android.database.Cursor
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.provider.ContactsContract
 import android.provider.DocumentsContract
 import android.provider.MediaStore
-import java.io.*
+import java.io.File
+import java.io.FileOutputStream
+import java.io.InputStream
+import java.io.OutputStream
 import java.util.*
 
 
@@ -87,21 +91,41 @@ object FileDirectory {
                               selectionArgs: Array<String>?): String? {
 
         if (uri.authority != null) {
-            val targetFile = File(context.cacheDir, "IMG_${Date().time}.png")
-            context.contentResolver.openInputStream(uri)?.use { input ->
+            try {
+                val fileName = uri.toString().substring(uri.toString().lastIndexOf("/")+ 1);
+                val targetFile = File(context.cacheDir, "IMG_${fileName}.png")
+                if(targetFile.exists()){
+                    return  targetFile.path
+                }
+                val input: InputStream = ContactsContract.Contacts.openContactPhotoInputStream(context.contentResolver, uri, false)
+                        ?: return null
+
+                val buffer = ByteArray(input.available())
+                input.read(buffer)
+
+                val outStream: OutputStream = FileOutputStream(targetFile)
+                outStream.write(buffer)
+                return targetFile.path
+            } catch (ex: Exception) {
+                ex.printStackTrace()
+                return null
+            }
+
+
+            /*context.contentResolver.openInputStream(uri)?.use { input ->
                 FileOutputStream(targetFile).use { fileOut ->
                     input.copyTo(fileOut)
                 }
             }
-            return targetFile.path
+            return targetFile.path*/
         }
 
         var cursor: Cursor? = null
         val column = "_data"
-        val projection = arrayOf(column)
+        val proj = arrayOf(MediaStore.Images.Media.DATA)
 
         try {
-            cursor = context.contentResolver.query(uri, projection, selection, selectionArgs, null)
+            cursor = context.contentResolver.query(uri, proj, null, null, null)
             if (cursor != null && cursor.moveToFirst()) {
                 val column_index = cursor.getColumnIndexOrThrow(column)
                 return cursor.getString(column_index)
